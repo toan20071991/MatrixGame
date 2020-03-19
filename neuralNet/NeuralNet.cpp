@@ -1,45 +1,7 @@
-#include <stdio.h>
-#include <vector>
-#include <iostream>
+/*user include*/
+#include "NeuralNet.h"
 
 using namespace std;
-
-/*defined*/
-class Net;
-class Neural;
-typedef vector<Neural> layer;
-
-class Net {
-    private:
-        vector<layer> network;
-    public:
-        Net(const vector<unsigned> &topology);
-        void feedforward(const vector<double> &input);
-        void backprop(const vector<double> &result);
-        vector<double> getOutput(void);
-};
-
-class Neural {
-    private:
-        const double learningRate = 0.3;
-        const double alpha = 0.5;
-        double activation;  /*0-1*/
-        double gradient;   /*error between real and estimated value*/
-        vector<double> theta;
-        vector<double> deltaTheta;
-        unsigned myIndex;
-        double sigmoid(const double &input);
-        double derivativeSigmoid(const double &input);
-    public:
-        Neural(const unsigned &nextLayer, const unsigned &activeVal, unsigned &index);
-        double getTheta(const unsigned &thetaPos);
-        const double getActivation(void);
-        void setActivation(const double &value);
-        double feedForwardCal(const layer &prevLayer, const unsigned &thetaPos);
-        void calGradient(const double &result);
-        void calHiddenGradient(const layer nextLayer);
-        void updateTheta(layer &prevLayer);
-};
 
 /**************************************************
  * define class Net
@@ -151,11 +113,13 @@ double Neural::feedForwardCal(const layer &prevLayer, const unsigned &thetaPos) 
 }
 
 double Neural::sigmoid(const double &input) {
-    return (input/(1 + abs(input)));
+    // return (input/(1 + abs(input)));
+    return tanh(input);
 }
 
-double Neural::derivativeSigmoid(const double & input) {
-    return (1/((1+abs(input)) * (1 + abs(input))));
+double Neural::derivativeSigmoid(const double &input) {
+    // return (1/((1+abs(input)) * (1 + abs(input))));
+    return (1-(input*input));
 }
 
 void Neural::calGradient(const double &result) {
@@ -177,43 +141,4 @@ void Neural::updateTheta(layer &prevLayer) {
         prevLayer[i].deltaTheta[myIndex] = newDeltaTheta;
         prevLayer[i].theta[myIndex] += newDeltaTheta;
     }
-}
-
-/*****************************************************
- * main func
- * **************************************************/
-int main(int argc, char** argv) {
-    vector<unsigned> topology;
-    topology.push_back(stoi(argv[1]));
-    topology.push_back(stoi(argv[2]));
-    topology.push_back(stoi(argv[3]));
-    Net myNet(topology);
-    vector<double> input;
-    vector<double> output;
-    input.push_back(1);
-    input.push_back(2);
-    input.push_back(3);
-    myNet.feedforward(input);
-
-    output.push_back(1);
-    myNet.backprop(output);
-
-    vector<double> result;
-    result = myNet.getOutput();
-    for(unsigned i = 0; i < result.size(); i++) {
-        cout << "output: " << result[i] << endl;
-    }
-    myNet.feedforward(input);
-    result = myNet.getOutput();
-    for(unsigned i = 0; i < result.size(); i++) {
-        cout << "output: " << result[i] << endl;
-    }
-
-    myNet.backprop(output);
-    myNet.feedforward(input);
-    result = myNet.getOutput();
-    for(unsigned i = 0; i < result.size(); i++) {
-        cout << "output: " << result[i] << endl;
-    }
-    return 0;
 }

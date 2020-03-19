@@ -22,8 +22,10 @@ class Net {
 class Neural {
     private:
         double activation;  /*0-1*/
+        double delta;   /*error between real and estimated value*/
         vector<double> theta;
         double sigmoid(const double &input);
+        double derivativeSigmoid(const double &input);
     public:
         Neural(const unsigned &nextLayer, const unsigned &activeVal);
         double getTheta(const unsigned &thetaPos);
@@ -70,6 +72,12 @@ void Net::feedforward(const vector<double> &input) {
     }
 }
 
+void Net::backprop(const vector<double> &result) {
+    for(unsigned i = 0; i < result.size(); i++) {
+        network.back()[i] = result[i]
+    }
+}
+
 vector<double> Net::getOutput(void) {
     vector<double> result;
 
@@ -85,6 +93,7 @@ vector<double> Net::getOutput(void) {
 Neural::Neural(const unsigned &nextLayer, const unsigned &activeVal) {
     
     activation = activeVal;
+    delta = 0;
     /*initialize random theta*/
     for(unsigned i = 0; i < nextLayer; i++) {
         theta.push_back((double)rand()/RAND_MAX);
@@ -122,6 +131,11 @@ double Neural::feedForwardCal(const layer &prevLayer, const unsigned &thetaPos) 
 double Neural::sigmoid(const double &input) {
     return (input/(1 + abs(input)));
 }
+
+double Neural::derivativeSigmoid(const double & input) {
+    return (1/((1+abs(input)) * (1 + abs(input))));
+}
+
 /*****************************************************
  * main func
  * **************************************************/

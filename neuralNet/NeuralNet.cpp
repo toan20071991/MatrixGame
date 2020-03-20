@@ -48,12 +48,12 @@ void Net::backprop(const vector<double> &result) {
     }
     /*update gradient for hidden layer*/
     for(unsigned i = network.size() - 2; i > 0; i--) {
-        for(unsigned j = 0; j < network[i].size() - 1; j++) {
+        for(unsigned j = 0; j < network[i].size(); j++) {
             network[i][j].calHiddenGradient(network[i+1]);
         }
     }
     /*update theta*/
-    for(unsigned i = 1; i < network.size(); i++) {
+    for(unsigned i = network.size() - 1; i > 0; i--) {
         for(unsigned j = 0; j < network[i].size() - 1; j++) {
             network[i][j].updateTheta(network[i - 1]);
         }
@@ -123,7 +123,7 @@ double Neural::derivativeSigmoid(const double &input) {
 }
 
 void Neural::calGradient(const double &result) {
-    gradient = result - activation;
+    gradient = (result - activation);
 }
 
 void Neural::calHiddenGradient(const layer nextLayer) {

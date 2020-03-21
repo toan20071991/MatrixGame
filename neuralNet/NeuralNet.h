@@ -26,7 +26,7 @@ class Net {
 class Neural {
     private:
         const double learningRate = 0.3;
-        const double alpha = 0.5;
+        const double alpha = 0.1;
         double activation;  /*0-1*/
         double gradient;   /*error between real and estimated value*/
         vector<double> theta;
@@ -39,7 +39,7 @@ class Neural {
         double getTheta(const unsigned &thetaPos);
         const double getActivation(void);
         void setActivation(const double &value);
-        double feedForwardCal(const layer &prevLayer, const unsigned &thetaPos);
+        double feedForwardCal(const layer &prevLayer);
         void calGradient(const double &result);
         void calHiddenGradient(const layer nextLayer);
         void updateTheta(layer &prevLayer);

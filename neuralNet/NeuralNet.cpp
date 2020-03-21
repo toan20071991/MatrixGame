@@ -18,7 +18,7 @@ Net::Net(const vector<unsigned> &topology) {
                 network.back().push_back(Neural(0, 0, j));
             }
             else {
-                network.back().push_back(Neural(topology[i+1], j/topology[i+1], j));
+                network.back().push_back(Neural(topology[i+1], j/topology[i], j));
             }
         }
     }
@@ -35,7 +35,7 @@ void Net::feedforward(const vector<double> &input) {
             }
             /*others layers*/
             else {
-                network[i][j].setActivation(network[i][j].feedForwardCal(network[i-1], j));
+                network[i][j].setActivation(network[i][j].feedForwardCal(network[i-1]));
             }
         }
     }
@@ -48,7 +48,7 @@ void Net::backprop(const vector<double> &result) {
     }
     /*update gradient for hidden layer*/
     for(unsigned i = network.size() - 2; i > 0; i--) {
-        for(unsigned j = 0; j < network[i].size(); j++) {
+        for(unsigned j = 0; j < network[i].size() - 1; j++) {
             network[i][j].calHiddenGradient(network[i+1]);
         }
     }
@@ -101,11 +101,11 @@ void Neural::setActivation(const double &value) {
     activation = value;
 }
 
-double Neural::feedForwardCal(const layer &prevLayer, const unsigned &thetaPos) {
+double Neural::feedForwardCal(const layer &prevLayer) {
     double result = 0;
     /*loop through previous layer*/
     for(unsigned i = 0; i < prevLayer.size(); i++) {
-        result += prevLayer[i].activation * prevLayer[i].theta[thetaPos];
+        result += prevLayer[i].activation * prevLayer[i].theta[myIndex];
     }
     /*calculate activation value by sigmoid function*/
     result = sigmoid(result);

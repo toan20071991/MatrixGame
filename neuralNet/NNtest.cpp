@@ -48,12 +48,12 @@ void createTest(void) {
         else if(1 == (i % 4)) {
             input1[i] = 1;
             input2[i] = 0;
-            result[i] = 0;
+            result[i] = 1;
         }
         else if(2 == (i % 4)) {
             input1[i] = 0;
             input2[i] = 1;
-            result[i] = 0;
+            result[i] = 1;
         }
         else {
             input1[i] = 1;

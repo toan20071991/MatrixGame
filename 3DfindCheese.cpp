@@ -160,7 +160,7 @@ void Game::visualGame(void) {
 void Game::gameStsUpdate(void) {
 	actions curAct;
 	bool endOfEps = false;
-	reward = -0.1;
+	reward = -0.01;
 	/*player take action*/
 	curAct = playerOne.playGame();
 	numStep++;
@@ -170,9 +170,10 @@ void Game::gameStsUpdate(void) {
 			playerOne.updatePlayerPos(playerOne.getCurPos().X - 1, playerOne.getCurPos().Y);
 		}
 		else {
+			playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
 			endOfEps = true;
 			score--;
-			reward = -10;
+			reward = -1;
 		}
 	}
 	else if(RIGHT == curAct) {
@@ -180,9 +181,10 @@ void Game::gameStsUpdate(void) {
 			playerOne.updatePlayerPos(playerOne.getCurPos().X + 1, playerOne.getCurPos().Y);
 		}
 		else {
+			playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
 			endOfEps = true;
 			score--;
-			reward = -10;
+			reward = -1;
 		}
 	}
 	else if(UP == curAct) {
@@ -190,9 +192,10 @@ void Game::gameStsUpdate(void) {
 			playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y - 1);
 		}
 		else {
+			playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
 			endOfEps = true;
 			score--;
-			reward = -10;
+			reward = -1;
 		}
 	}
 	else {
@@ -200,24 +203,22 @@ void Game::gameStsUpdate(void) {
 			playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y + 1);
 		}
 		else {
+			playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
 			endOfEps = true;
 			score--;
-			reward = -10;
+			reward = -1;
 		}
 	}
 
 	if((positiveReward.X == playerOne.getCurPos().X) && (positiveReward.Y == playerOne.getCurPos().Y)) {
 		endOfEps = true;
 		score++;
-		reward = 100;
+		reward = 1;
 	}
 	else if((negativeReward.X == playerOne.getCurPos().X) && (negativeReward.Y == playerOne.getCurPos().Y)) {
 		endOfEps = true;
 		score--;
-		reward = -10;
-	}
-	if(-1 == reward) {
-		playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
+		reward = -1;
 	}
 	playerOne.updateQtable(reward, curAct);
 

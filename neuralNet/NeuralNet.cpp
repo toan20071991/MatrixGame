@@ -24,7 +24,7 @@ Net::Net(const vector<unsigned> &topology) {
     }
 }
 
-void Net::feedforward(const vector<double> &input) {
+void Net::feedforward(const vector<float> &input) {
     /*loop through each layer*/
     for(unsigned i = 0; i < network.size(); i++) {
         /*loop through each neural inside every layer*/
@@ -41,7 +41,7 @@ void Net::feedforward(const vector<double> &input) {
     }
 }
 
-void Net::backprop(const vector<double> &result) {
+void Net::backprop(const vector<float> &result) {
     /*update gradient for output layer*/
     for(unsigned i = 0; i < result.size(); i++) {
         network.back()[i].calGradient(result[i]);
@@ -60,8 +60,8 @@ void Net::backprop(const vector<double> &result) {
     }
 }
 
-vector<double> Net::getOutput(void) {
-    vector<double> result;
+vector<float> Net::getOutput(void) {
+    vector<float> result;
 
     for(unsigned i = 0; i < network.back().size() - 1; i++) {
         result.push_back(network.back().at(i).getActivation());
@@ -79,12 +79,12 @@ Neural::Neural(const unsigned &nextLayer, const unsigned &activeVal, unsigned &i
     myIndex = index;
     /*initialize random theta*/
     for(unsigned i = 0; i < nextLayer; i++) {
-        theta.push_back((double)rand()/RAND_MAX);
+        theta.push_back((float)rand()/RAND_MAX);
         deltaTheta.push_back(0);
     }
 }
 
-double Neural::getTheta(const unsigned &thetaPos) {
+float Neural::getTheta(const unsigned &thetaPos) {
     if(thetaPos >= theta.size()) {
         return theta.back();
     }
@@ -93,16 +93,16 @@ double Neural::getTheta(const unsigned &thetaPos) {
     }
 }
 
-const double Neural::getActivation(void) {
+const float Neural::getActivation(void) {
     return activation;
 }
 
-void Neural::setActivation(const double &value) {
+void Neural::setActivation(const float &value) {
     activation = value;
 }
 
-double Neural::feedForwardCal(const layer &prevLayer) {
-    double result = 0;
+float Neural::feedForwardCal(const layer &prevLayer) {
+    float result = 0;
     /*loop through previous layer*/
     for(unsigned i = 0; i < prevLayer.size(); i++) {
         result += prevLayer[i].activation * prevLayer[i].theta[myIndex];
@@ -112,17 +112,17 @@ double Neural::feedForwardCal(const layer &prevLayer) {
     return result;
 }
 
-double Neural::sigmoid(const double &input) {
+float Neural::sigmoid(const float &input) {
     // return (input/(1 + abs(input)));
     return tanh(input);
 }
 
-double Neural::derivativeSigmoid(const double &input) {
+float Neural::derivativeSigmoid(const float &input) {
     // return (1/((1+abs(input)) * (1 + abs(input))));
     return (1-(input*input));
 }
 
-void Neural::calGradient(const double &result) {
+void Neural::calGradient(const float &result) {
     gradient = (result - activation);
 }
 
@@ -135,8 +135,8 @@ void Neural::calHiddenGradient(const layer nextLayer) {
 
 void Neural::updateTheta(layer &prevLayer) {
     for(unsigned i = 0; i < prevLayer.size(); i++) {
-        double oldDeltaTheta = prevLayer[i].deltaTheta[myIndex];
-        double newDeltaTheta = learningRate * prevLayer[i].getActivation() * gradient \
+        float oldDeltaTheta = prevLayer[i].deltaTheta[myIndex];
+        float newDeltaTheta = learningRate * prevLayer[i].getActivation() * gradient \
                                 + alpha * oldDeltaTheta;
         prevLayer[i].deltaTheta[myIndex] = newDeltaTheta;
         prevLayer[i].theta[myIndex] += newDeltaTheta;

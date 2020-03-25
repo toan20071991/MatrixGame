@@ -69,6 +69,34 @@ vector<float> Net::getOutput(void) {
     return result;
 }
 
+vector<vector<vector<float>>> Net::getTheta(void) {
+    vector<vector<vector<float>>> result;
+
+    /*loop all layers but output layer*/
+    for(unsigned ilayers = 0; ilayers < network.size()-1; ilayers++) {
+        result.push_back(vector<vector<float>>());
+        /*loop all neural including bias*/
+        for(unsigned iNeural = 0; iNeural < network[ilayers].size(); iNeural++) {
+            result[ilayers].push_back(vector<float>());
+            /*loop through all theta for each neural*/
+            for(unsigned iTheta = 0; iTheta < network[ilayers+1].size()-1; iTheta++) {
+                result[ilayers][iNeural].push_back(network[ilayers][iNeural].getTheta(iTheta));
+            }
+        }
+    }
+    return result;
+}
+
+void Net::setTheta(vector<vector<vector<float>>> &theta) {
+    /*loop all layers but output layer*/
+    for(unsigned ilayers = 0; ilayers < network.size()-1; ilayers++) {
+        /*loop all neural including bias*/
+        for(unsigned iNeural = 0; iNeural < network[ilayers].size(); iNeural++) {
+            network[ilayers][iNeural].setThetaManual(theta[ilayers][iNeural]);
+        }
+    }
+}
+
 /*****************************************************
  * define class Neural
  * **************************************************/
@@ -141,4 +169,8 @@ void Neural::updateTheta(layer &prevLayer) {
         prevLayer[i].deltaTheta[myIndex] = newDeltaTheta;
         prevLayer[i].theta[myIndex] += newDeltaTheta;
     }
+}
+
+void Neural::setThetaManual(const vector<float> &iTheta) {
+    theta = iTheta;
 }

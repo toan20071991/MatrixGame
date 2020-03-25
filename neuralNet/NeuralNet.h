@@ -21,6 +21,8 @@ class Net {
         void feedforward(const vector<float> &input);
         void backprop(const vector<float> &result);
         vector<float> getOutput(void);
+        vector<vector<vector<float>>> getTheta(void);
+        void setTheta(vector<vector<vector<float>>> &theta);
 };
 
 class Neural {
@@ -43,6 +45,7 @@ class Neural {
         void calGradient(const float &result);
         void calHiddenGradient(const layer nextLayer);
         void updateTheta(layer &prevLayer);
+        void setThetaManual(const vector<float> &iTheta);
 };
 
 #endif

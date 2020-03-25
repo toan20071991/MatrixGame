@@ -5,8 +5,8 @@ using namespace std;
 /*****************************************************
 	SUB FUNCTION
 *****************************************************/
-void delay(unsigned int delaytime) {
-	unsigned int cnt = 0;
+void delay(unsigned delaytime) {
+	unsigned cnt = 0;
 	do {
 		cnt++;
 	} while(cnt < delaytime);
@@ -33,18 +33,17 @@ unsigned maxIndex(vector<float> vectorInput) {
 	CLASS DEFINATION
 *****************************************************/
 /***************Players Class**************/
-vector<unsigned> topology {2, 3, 3, 1};
-Players::Players(const vector<unsigned> &topology):playerNetwork(topology) {
+Players::Players(const vector<unsigned> &topology):playerNetwork(topology), trainingNetwork(topology) {
 	/*do nothing but initialize neural network*/
 }
 
-void Players::updatePlayerPos(const int &X,const int &Y) {
+void Players::updatePlayerPos(const unsigned &X,const unsigned &Y) {
 	prevPos = curPos;
 	curPos.X = X;
 	curPos.Y = Y;
 }
 
-void Players::initPlayer(const int &X,const int &Y, const int &w, const int &h) {
+void Players::initPlayer(const unsigned &X,const unsigned &Y, const unsigned &w, const unsigned &h) {
 	originPos.X = X;
 	originPos.Y = Y;
 	curPos.X = X;
@@ -59,9 +58,6 @@ void Players::initPlayer(const int &X,const int &Y, const int &w, const int &h) 
 			}
 		}
 	}
-
-	/*create neural network*/
-	vector<unsigned> topology = {2, 3, 3, 1};
 }
 
 pos Players::getCurPos(void) const{
@@ -69,8 +65,16 @@ pos Players::getCurPos(void) const{
 }
 
 void Players::reset(void) {
+	static unsigned cnt = 0;
 	curPos.X = originPos.X;
 	curPos.Y = originPos.Y;
+	if(10 > cnt) {
+		cnt++;
+	}
+	else {
+		updateTrainingNet();
+		cnt = 0;
+	}
 }
 
 actions Players::playGame(const unsigned &w, const unsigned &h) {
@@ -86,10 +90,28 @@ actions Players::playGame(const unsigned &w, const unsigned &h) {
 #ifndef DEEP_LEARNING
 		chosenAct = chooseActStrategy(curPos.X, curPos.Y);
 #else
-		vector<float> input {(float)(curPos.X/w), (float)(curPos.Y/h)};
+		vector<float> input;
+		vector<float> inputLeft;
+		vector<float> inputRight;
+		vector<float> inputUp;
+		vector<float> inputDown;
+		input.push_back(rewardPosX);
+		input.push_back(rewardPosY);
+		input.push_back(purnishPosX);
+		input.push_back(purnishPosY);
+		input.push_back((float)(curPos.X/w));
+		input.push_back((float)curPos.Y/h);
+		inputLeft = input;
 		playerNetwork.feedforward(input);
 		chosenAct = (actions)maxIndex(playerNetwork.getOutput());
 #endif
+	}
+
+	/*update epsilon*/
+	static unsigned locStep = 0;
+	if(6000 > locStep) {
+		epsilon += 0.0001;
+		locStep++;
 	}
 
 	return chosenAct;
@@ -129,11 +151,11 @@ void Players::updateQtable(const float &reward, const actions &prevAction) {
 }
 
 void Players::updateReplayMem(const unsigned gameWidth, const unsigned gameHeight, const float reward, actions action) {
-	if(100 > replayMem.numOfStoredMem) {
+	if(200 > replayMem.numOfStoredMem) {
 		/*more space to store data*/
 		replayMem.numOfStoredMem++;
 	}
-	if(99 > replayMem.indexUpdatingMem) {
+	if(199 > replayMem.indexUpdatingMem) {
 		replayMem.indexUpdatingMem++;
 	}
 	else {
@@ -151,36 +173,80 @@ void Players::updateReplayMem(const unsigned gameWidth, const unsigned gameHeigh
 void Players::trainNetwork(void) {
 	/*only train when we have enough replay memory*/
 	if(replayMem.numOfStoredMem >= 100) {
+		randomBatch();
 		/*loop all replay memory*/
-		for(unsigned senario = 0; senario < replayMem.numOfStoredMem; senario++){
-			vector<float> inputPrevState {replayMem.mem[senario].prevPosX, replayMem.mem[senario].prevPosY};
-			vector<float> inputNextState {replayMem.mem[senario].nextPosX, replayMem.mem[senario].nextPosY};
+		for(unsigned senario = 0; senario < 100; senario++){
+			vector<float> inputPrevState {
+				rewardPosX,
+				rewardPosY,
+				purnishPosX,
+				purnishPosY,
+				replayMem.batch[senario].prevPosX,
+				replayMem.batch[senario].prevPosY};
+			vector<float> inputNextState {
+				rewardPosX,
+				rewardPosY,
+				purnishPosX,
+				purnishPosY,
+				replayMem.batch[senario].nextPosX,
+				replayMem.batch[senario].nextPosY};
 			vector<float> vexpectedQvalue;
 			float expectedQvalue = 0;
 			/*calculate expected value*/
-			playerNetwork.feedforward(inputNextState);
-			vexpectedQvalue = playerNetwork.getOutput();
+			trainingNetwork.feedforward(inputNextState);
+			vexpectedQvalue = trainingNetwork.getOutput();
 			/*find maximum element*/
 			unsigned max_index = maxIndex(vexpectedQvalue);
 			/*calculate Q value*/
-			expectedQvalue = replayMem.mem[senario].reward + discount*vexpectedQvalue[max_index];
+			expectedQvalue = replayMem.batch[senario].reward + discount*vexpectedQvalue[max_index];
 
 			/*training network*/
 			playerNetwork.feedforward(inputPrevState);
 			vexpectedQvalue = playerNetwork.getOutput();
-			vexpectedQvalue[replayMem.mem[senario].prevAction] = expectedQvalue;
+			vexpectedQvalue[replayMem.batch[senario].prevAction] = expectedQvalue;
 			playerNetwork.backprop(vexpectedQvalue);
 		}
 	}
 }
 
+void Players::enviUpdate(const pos &reward, const pos &purnish, const unsigned &w, const unsigned &h) {
+	rewardPosX = (float)reward.X/w;
+	rewardPosY = (float)reward.Y/h;
+	purnishPosX = (float)purnish.X/w;
+	purnishPosY = (float)purnish.Y/h;
+}
+
+void Players::updateTrainingNet(void) {
+	vector<vector<vector<float>>> iTheta;
+	iTheta = playerNetwork.getTheta();
+	trainingNetwork.setTheta(iTheta);
+}
+
+void Players::randomBatch(void) {
+	NNstate arr1[200];
+	NNstate arr2[200];
+	unsigned index = 0;
+	unsigned numOfMemLeft = replayMem.numOfStoredMem;
+	memcpy(arr1, replayMem.mem, numOfMemLeft*sizeof(NNstate_t));
+	memcpy(arr2, arr1, numOfMemLeft*sizeof(NNstate_t));
+	for(unsigned num = 0; num < 100; num++) {
+		index = rand() % numOfMemLeft;
+		replayMem.batch[num] = arr1[index];
+		numOfMemLeft--;
+		if(index != numOfMemLeft) {
+			memcpy(&arr1[index], &arr2[index+1], (numOfMemLeft - 1 - index)*sizeof(NNstate_t));
+			memcpy(arr2, arr1, numOfMemLeft*sizeof(NNstate_t));
+		}
+	}
+}
+
 /***************Game Class**************/
-Game::Game(const int &w,const int &h, const vector<unsigned> &topology):playerOne(topology) {
+Game::Game(const unsigned &w,const unsigned &h, const vector<unsigned> &topology):playerOne(topology) {
 	width = w;
 	height = h;
 	/*temporary variable*/
-	unsigned int playerPosX;
-	unsigned int playerPosY;
+	unsigned playerPosX;
+	unsigned playerPosY;
 	/*create random seed*/
 	srand(time(NULL));
 	do {
@@ -191,12 +257,15 @@ Game::Game(const int &w,const int &h, const vector<unsigned> &topology):playerOn
 		playerPosX = rand() % width;
 		playerPosY = rand() % height;
 		playerOne.initPlayer(playerPosX, playerPosY, w, h);
+		playerOne.enviUpdate(positiveReward, negativeReward, width, height);
 	} while(((negativeReward.X == positiveReward.X) \
 			&& (negativeReward.Y == positiveReward.Y)) \
 		|| ((negativeReward.X == playerPosX) \
 			&& (negativeReward.Y == playerPosY)) \
 		|| ((positiveReward.X == playerPosX) \
 			&& (positiveReward.Y == playerPosY)));
+	/*initialize training net*/
+	playerOne.updateTrainingNet();
 }
 
 void Game::visualGame(void) {
@@ -236,7 +305,7 @@ void Game::visualGame(void) {
 void Game::gameStsUpdate(void) {
 	actions curAct;
 	bool endOfEps = false;
-	reward = -0.1;
+	reward = -0.001;
 	/*player take action*/
 	curAct = playerOne.playGame(width, height);
 	numStep++;
@@ -246,9 +315,10 @@ void Game::gameStsUpdate(void) {
 			playerOne.updatePlayerPos(playerOne.getCurPos().X - 1, playerOne.getCurPos().Y);
 		}
 		else {
+			// playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
 			endOfEps = true;
 			score--;
-			reward = -10;
+			reward = -1;
 		}
 	}
 	else if(RIGHT == curAct) {
@@ -256,9 +326,10 @@ void Game::gameStsUpdate(void) {
 			playerOne.updatePlayerPos(playerOne.getCurPos().X + 1, playerOne.getCurPos().Y);
 		}
 		else {
+			// playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
 			endOfEps = true;
 			score--;
-			reward = -10;
+			reward = -1;
 		}
 	}
 	else if(UP == curAct) {
@@ -266,9 +337,10 @@ void Game::gameStsUpdate(void) {
 			playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y - 1);
 		}
 		else {
+			// playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
 			endOfEps = true;
 			score--;
-			reward = -10;
+			reward = -1;
 		}
 	}
 	else {
@@ -276,24 +348,22 @@ void Game::gameStsUpdate(void) {
 			playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y + 1);
 		}
 		else {
+			// playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
 			endOfEps = true;
 			score--;
-			reward = -10;
+			reward = -1;
 		}
 	}
 
 	if((positiveReward.X == playerOne.getCurPos().X) && (positiveReward.Y == playerOne.getCurPos().Y)) {
 		endOfEps = true;
 		score++;
-		reward = 100;
+		reward = 1;
 	}
 	else if((negativeReward.X == playerOne.getCurPos().X) && (negativeReward.Y == playerOne.getCurPos().Y)) {
 		endOfEps = true;
 		score--;
-		reward = -10;
-	}
-	if(-1 == reward) {
-		playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
+		reward = -1;
 	}
 #ifndef DEEP_LEARNING
 	playerOne.updateQtable(reward, curAct);
@@ -303,12 +373,11 @@ void Game::gameStsUpdate(void) {
 #endif
 
 	if(true == endOfEps) {
-		if((-500 >= score) || (50 <= score)) {
+		if((-10000 >= score) || (50 <= score)) {
 			endOfGame = true;
 		}
 		else {
 			playerOne.reset();
-			numStep = 0;
 		}
 	}
 }
@@ -322,14 +391,14 @@ bool Game::getGameSts(void) {
  * **********************************************/
 int main(int argc, char** argv) {
 	/*choose architect for neural network*/
-	vector<unsigned> topology {2, 3, 3, 1};
+	vector<unsigned> topology {6, 6, 6, 4};
 	if(argc > 2) {
 		Game game(stoi(argv[1]), stoi(argv[2]), topology);
 		do {
 			system("clear");
 			game.gameStsUpdate();
 			game.visualGame();
-			usleep(100000);
+			usleep(10000);
 		} while(false == game.getGameSts());
 	}
 	else {

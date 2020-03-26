@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <vector>
 #include <string.h>
+/*user*/
 #include "neuralNet/NeuralNet.h"
 
 #ifndef FIND_CHEESE_H
@@ -68,7 +69,7 @@ class Players {
 		Net trainingNetwork;
         const float learningRate = 0.2;
         const float discount = 0.9;
-        actions chooseActStrategy(const unsigned &stateX, const unsigned &stateY);
+        actions chooseActStrategy(const unsigned &stateX, const unsigned &stateY, unsigned w, unsigned h);
 		void randomBatch(void);
 
 	public:
@@ -95,6 +96,8 @@ class Game {
 		pos positiveReward;
 		bool endOfGame = false;
 		int score = 0;
+		unsigned winGame = 0;
+		unsigned loseGame = 0;
 		unsigned numStep = 0;
         float reward = 0;
 

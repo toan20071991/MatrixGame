@@ -17,6 +17,13 @@ using namespace std;
 *****************************************************/
 /*deep learning or not*/
 #define DEEP_LEARNING
+#define REWARD_POINT	(float)(1)
+#define DEATH_POINT		(float)(-1)
+#define STEP_POINT		(float)(-0.01)
+
+#define MEMORY_POOL		(unsigned)500
+#define BATCH_SIZE		(unsigned)400
+
 
 typedef struct position {
 	unsigned X;
@@ -38,18 +45,16 @@ typedef struct stateAction_t {
 /*struct for training neural network*/
 typedef struct NNstate_t {
 	actions prevAction;
-	float prevPosX;
-	float prevPosY;
+	pos prevPos;
 	float reward;
-	float nextPosX;
-	float nextPosY;
+	pos nextPos;
 } NNstate;
 
 typedef struct NNstateHdl_t {
 	unsigned numOfStoredMem = 0;
 	unsigned indexUpdatingMem = 0;
-	NNstate mem[200];
-	NNstate batch[100];
+	NNstate mem[MEMORY_POOL];
+	NNstate batch[BATCH_SIZE];
 } NNstateHdl;
 
 class Players {
@@ -57,10 +62,9 @@ class Players {
 		pos curPos;
         pos originPos;
         pos prevPos;
-		float rewardPosX;
-		float rewardPosY;
-		float purnishPosX;
-		float purnishPosY;
+		pos gameBoardSize;
+		pos food;
+		pos hole;
 		actions action;	/*4 action as: left - right - up - down*/
 		float epsilon = 0.3;	/*deterministic action*/
         vector<vector<stateAction>> q_value;
@@ -69,21 +73,21 @@ class Players {
 		Net trainingNetwork;
         const float learningRate = 0.2;
         const float discount = 0.9;
-        actions chooseActStrategy(const unsigned &stateX, const unsigned &stateY, unsigned w, unsigned h);
+        actions chooseActStrategy(const unsigned &stateX, const unsigned &stateY);
 		void randomBatch(void);
+		vector<unsigned> prepareInputForNN(pos target);	/*convert 2D position to 1D vector for NN input*/
 
 	public:
 		Players(const vector<unsigned> &topology);
 		/*update current player position*/
 		void updatePlayerPos(const unsigned &X,const unsigned &Y);
-        void initPlayer(const unsigned &X, const unsigned &Y, const unsigned &w, const unsigned &h);
+        void initPlayer(const unsigned &X, const unsigned &Y, const unsigned &w, const unsigned &h, const pos &positive, const pos &negative);
 		pos getCurPos(void) const;
-		actions playGame(const unsigned &w, const unsigned &h);
+		actions playGame(void);
         void reset(void);
         void updateQtable(const float &reward, const actions &prevAction);
-		void updateReplayMem(const unsigned gameWidth, const unsigned gameHeight, const float reward, actions action);
+		void updateReplayMem(const float reward, actions action);
 		void trainNetwork(void);
-		void enviUpdate(const pos &reward, const pos &purnish, const unsigned &w, const unsigned &h);
 		void updateTrainingNet(void);
 };
 

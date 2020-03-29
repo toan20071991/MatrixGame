@@ -27,7 +27,7 @@ class Net {
 
 class Neural {
     private:
-        const float learningRate = 0.3;
+        const float learningRate = 0.03;
         const float alpha = 0.1;
         float activation;  /*0-1*/
         float gradient;   /*error between real and estimated value*/

@@ -5,12 +5,6 @@ using namespace std;
 /*****************************************************
 	SUB FUNCTION
 *****************************************************/
-void delay(unsigned delaytime) {
-	unsigned cnt = 0;
-	do {
-		cnt++;
-	} while(cnt < delaytime);
-}
 
 unsigned maxIndex(vector<float> vectorInput) {
 	/*find maximum element*/
@@ -43,11 +37,15 @@ void Players::updatePlayerPos(const unsigned &X,const unsigned &Y) {
 	curPos.Y = Y;
 }
 
-void Players::initPlayer(const unsigned &X,const unsigned &Y, const unsigned &w, const unsigned &h) {
+void Players::initPlayer(const unsigned &X,const unsigned &Y, const unsigned &w, const unsigned &h, const pos &positive, const pos &negative) {
 	originPos.X = X;
 	originPos.Y = Y;
 	curPos.X = X;
 	curPos.Y = Y;
+	gameBoardSize.X = w;
+	gameBoardSize.Y = h;
+	food = positive;
+	hole = negative;
 	/*create Q value table*/
 	if(0 == q_value.size()) {
 		for(unsigned i = 0; i < w; i++) {
@@ -77,16 +75,15 @@ void Players::reset(void) {
 	}
 }
 
-actions Players::playGame(const unsigned &w, const unsigned &h) {
+actions Players::playGame(void) {
 	float prop = (float)rand() / RAND_MAX;
 	actions chosenAct = LEFT;
-	vector<unsigned> listActionWithSameProp;
 	if(prop > epsilon) {
 		chosenAct = (actions)(rand()%(unsigned)NUM_ACTION);
 	}
 	else {
 		/*main strategy: choose action with highest probability*/
-		chosenAct = chooseActStrategy(curPos.X, curPos.Y, w, h);
+		chosenAct = chooseActStrategy(curPos.X, curPos.Y);
 	}
 
 	/*update epsilon*/
@@ -99,7 +96,7 @@ actions Players::playGame(const unsigned &w, const unsigned &h) {
 	return chosenAct;
 }
 
-actions Players::chooseActStrategy(const unsigned &stateX, const unsigned &stateY, unsigned w, unsigned h) {
+actions Players::chooseActStrategy(const unsigned &stateX, const unsigned &stateY) {
 	actions chosenAct = LEFT;
 #ifndef DEEP_LEARNING
 	float maxActionProp = q_value[stateX][stateY].factionProp[0];
@@ -124,35 +121,30 @@ actions Players::chooseActStrategy(const unsigned &stateX, const unsigned &state
 	vector<float> input;
 	vector<float> iq_val;
 	vector<float> inputLeft {1, 0, 0, 0};
-	vector<float> inputRight {0, 1, 0, 0};
-	vector<float> inputUp {0, 0, 1, 0};
-	vector<float> inputDown {0, 0, 0, 1};
+	vector<unsigned> veCurPos = prepareInputForNN(curPos);
 	
 	/*estimate Left action*/
-	input = inputLeft;
-	input.push_back((float)(curPos.X/w));
-	input.push_back((float)curPos.Y/h);
+	input.reserve(4 + veCurPos.size());
+	input.insert(input.end(), inputLeft.begin(), inputLeft.end());
+	input.insert(input.end(), veCurPos.begin(), veCurPos.end());
 	playerNetwork.feedforward(input);
 	iq_val.push_back(playerNetwork.getOutput()[0]);
 
 	/*estimate Right action*/
-	input = inputRight;
-	input.push_back((float)(curPos.X/w));
-	input.push_back((float)curPos.Y/h);
+	input[0] = 0;
+	input[1] = 1;
 	playerNetwork.feedforward(input);
 	iq_val.push_back(playerNetwork.getOutput()[0]);
 
 	/*estimate Up action*/
-	input = inputUp;
-	input.push_back((float)(curPos.X/w));
-	input.push_back((float)curPos.Y/h);
+	input[1] = 0;
+	input[2] = 1;
 	playerNetwork.feedforward(input);
 	iq_val.push_back(playerNetwork.getOutput()[0]);
 
-	/*estimate Left action*/
-	input = inputDown;
-	input.push_back((float)(curPos.X/w));
-	input.push_back((float)curPos.Y/h);
+	/*estimate Down action*/
+	input[2] = 0;
+	input[3] = 1;
 	playerNetwork.feedforward(input);
 	iq_val.push_back(playerNetwork.getOutput()[0]);
 
@@ -165,124 +157,100 @@ void Players::updateQtable(const float &reward, const actions &prevAction) {
 	/*declare current action value in short term*/
 	float *curqa_value = &q_value[prevPos.X][prevPos.Y].factionProp[(unsigned)prevAction];
 	/*maximum future state*/
-	float nextqa_maxValue = q_value[curPos.X][curPos.Y].factionProp[chooseActStrategy(curPos.X, curPos.Y, 0, 0)];
+	float nextqa_maxValue = q_value[curPos.X][curPos.Y].factionProp[chooseActStrategy(curPos.X, curPos.Y)];
 
 	*curqa_value = *curqa_value + learningRate * (reward + discount * nextqa_maxValue - *curqa_value);
 }
 
-void Players::updateReplayMem(const unsigned gameWidth, const unsigned gameHeight, const float reward, actions action) {
-	if(200 > replayMem.numOfStoredMem) {
-		/*more space to store data*/
-		replayMem.numOfStoredMem++;
-	}
-	if(199 > replayMem.indexUpdatingMem) {
-		replayMem.indexUpdatingMem++;
-	}
-	else {
-		replayMem.indexUpdatingMem = 0;
-	}
-	/*update replay memory*/
-	replayMem.mem[replayMem.indexUpdatingMem].prevPosX = (float)prevPos.X / gameWidth;
-	replayMem.mem[replayMem.indexUpdatingMem].prevPosY = (float)prevPos.Y / gameHeight;
-	replayMem.mem[replayMem.indexUpdatingMem].nextPosX = (float)curPos.X / gameWidth;
-	replayMem.mem[replayMem.indexUpdatingMem].nextPosY = (float)curPos.Y / gameHeight;
-	replayMem.mem[replayMem.indexUpdatingMem].prevAction = action;
-	replayMem.mem[replayMem.indexUpdatingMem].reward = reward;
+void Players::updateReplayMem(const float reward, actions action) {
+	unsigned ucnt = 0;
+	do {
+		if(MEMORY_POOL > replayMem.numOfStoredMem) {
+			/*more space to store data*/
+			replayMem.numOfStoredMem++;
+		}
+		if(MEMORY_POOL - 1 > replayMem.indexUpdatingMem) {
+			replayMem.indexUpdatingMem++;
+		}
+		else {
+			replayMem.indexUpdatingMem = 0;
+		}
+		/*update replay memory*/
+		replayMem.mem[replayMem.indexUpdatingMem].prevPos = prevPos;
+		replayMem.mem[replayMem.indexUpdatingMem].nextPos = curPos;
+		replayMem.mem[replayMem.indexUpdatingMem].prevAction = action;
+		replayMem.mem[replayMem.indexUpdatingMem].reward = reward;
+
+		ucnt++;
+	}while((1 == reward) && (20 > ucnt));
 }
 
 void Players::trainNetwork(void) {
 	/*only train when we have enough replay memory*/
-	if(replayMem.numOfStoredMem >= 100) {
+	if(replayMem.numOfStoredMem >= BATCH_SIZE) {
 		randomBatch();
+
 		/*loop all replay memory*/
-		for(unsigned senario = 0; senario < 100; senario++){
-			vector<float> inputPrevState {};
-			inputPrevState.clear();
+		for(unsigned senario = 0; senario < BATCH_SIZE; senario++){
+			vector<float> inputPrevState {0, 0, 0, 0};
+			vector<float> inputNextState {0, 0, 0, 0};
+			vector<float> vexpectedQvalue;
+			float expectedQvalue = 0;
+			unsigned max_index = 0;
+			vector<unsigned> veNextState = prepareInputForNN(replayMem.batch[senario].nextPos);
+			vector<unsigned> vePrevState = prepareInputForNN(replayMem.batch[senario].prevPos);
+
+			inputPrevState.reserve(4 + vePrevState.size());
 			for(unsigned h = 0; h < (unsigned)NUM_ACTION; h++) {
 				if(h == (unsigned)replayMem.batch[senario].prevAction) {
-					inputPrevState.push_back(1);
-				}
-				else {
-					inputPrevState.push_back(0);
+					inputPrevState[h] = 1;
 				}
 			}
 
-			inputPrevState.push_back(replayMem.batch[senario].prevPosX),
-			inputPrevState.push_back(replayMem.batch[senario].prevPosY);
-			
-			/*calculate expected value*/
-			vector<float> vexpectedQvalue {};
-			vector<float> inputNextState;
-			float expectedQvalue = 0;
+			inputPrevState.insert(inputPrevState.end(), vePrevState.begin(), vePrevState.end());
 
-			vexpectedQvalue.clear();
-			
-			inputNextState.clear();
-			inputNextState.push_back(1);
-			inputNextState.push_back(0);
-			inputNextState.push_back(0);
-			inputNextState.push_back(0);
-			inputNextState.push_back(replayMem.batch[senario].nextPosX);
-			inputNextState.push_back(replayMem.batch[senario].nextPosY);
-			trainingNetwork.feedforward(inputNextState);
-			vexpectedQvalue.push_back(trainingNetwork.getOutput()[0]);
+			/*not in terminal state*/
+			inputNextState.reserve(4 + veNextState.size());
+			inputNextState.insert(inputNextState.end(), veNextState.begin(), veNextState.end());
+			if(STEP_POINT == replayMem.batch[senario].reward) {
+				/*Left action*/
+				inputNextState[0] = 1;
+				trainingNetwork.feedforward(inputNextState);
+				vexpectedQvalue.push_back(trainingNetwork.getOutput()[0]);
 
-			inputNextState.clear();
-			inputNextState.push_back(0);
-			inputNextState.push_back(1);
-			inputNextState.push_back(0);
-			inputNextState.push_back(0);
-			inputNextState.push_back(replayMem.batch[senario].nextPosX);
-			inputNextState.push_back(replayMem.batch[senario].nextPosY);
-			trainingNetwork.feedforward(inputNextState);
-			vexpectedQvalue.push_back(trainingNetwork.getOutput()[0]);
+				inputNextState[0] = 0;
+				inputNextState[1] = 1;
+				trainingNetwork.feedforward(inputNextState);
+				vexpectedQvalue.push_back(trainingNetwork.getOutput()[0]);
 
-			inputNextState.clear();
-			inputNextState.push_back(0);
-			inputNextState.push_back(0);
-			inputNextState.push_back(1);
-			inputNextState.push_back(0);
-			inputNextState.push_back(replayMem.batch[senario].nextPosX);
-			inputNextState.push_back(replayMem.batch[senario].nextPosY);
-			trainingNetwork.feedforward(inputNextState);
-			vexpectedQvalue.push_back(trainingNetwork.getOutput()[0]);
+				inputNextState[1] = 0;
+				inputNextState[2] = 1;
+				trainingNetwork.feedforward(inputNextState);
+				vexpectedQvalue.push_back(trainingNetwork.getOutput()[0]);
 
-			inputNextState.clear();
-			inputNextState.push_back(0);
-			inputNextState.push_back(0);
-			inputNextState.push_back(0);
-			inputNextState.push_back(1);
-			inputNextState.push_back(replayMem.batch[senario].nextPosX);
-			inputNextState.push_back(replayMem.batch[senario].nextPosY);
-			trainingNetwork.feedforward(inputNextState);
-			vexpectedQvalue.push_back(trainingNetwork.getOutput()[0]);
+				inputNextState[2] = 0;
+				inputNextState[3] = 1;
+				trainingNetwork.feedforward(inputNextState);
+				vexpectedQvalue.push_back(trainingNetwork.getOutput()[0]);
+			}
+			else {
+				/*expected value at terminal state is 0*/
+				vexpectedQvalue.push_back(0);
+			}
 
 			/*training network*/
 			playerNetwork.feedforward(inputPrevState);
 
 			/*find maximum element*/
-			unsigned max_index = maxIndex(vexpectedQvalue);
+			max_index = maxIndex(vexpectedQvalue);
 			/*calculate Q value*/
 			expectedQvalue = replayMem.batch[senario].reward + discount*vexpectedQvalue[max_index];
-			if(expectedQvalue < -1) {
-				expectedQvalue = -1;
-			}
-			else if(expectedQvalue > 1) {
-				expectedQvalue = 1;
-			}
 
-			// vexpectedQvalue[replayMem.batch[senario].prevAction] = expectedQvalue;
-			vexpectedQvalue.assign(1, expectedQvalue);
+			vexpectedQvalue.clear();
+			vexpectedQvalue.push_back(expectedQvalue);
 			playerNetwork.backprop(vexpectedQvalue);
 		}
 	}
-}
-
-void Players::enviUpdate(const pos &reward, const pos &purnish, const unsigned &w, const unsigned &h) {
-	rewardPosX = (float)reward.X/w;
-	rewardPosY = (float)reward.Y/h;
-	purnishPosX = (float)purnish.X/w;
-	purnishPosY = (float)purnish.Y/h;
 }
 
 void Players::updateTrainingNet(void) {
@@ -292,21 +260,36 @@ void Players::updateTrainingNet(void) {
 }
 
 void Players::randomBatch(void) {
-	NNstate arr1[200];
-	NNstate arr2[200];
+	NNstate arr1[MEMORY_POOL];
+	NNstate arr2[MEMORY_POOL];
 	unsigned index = 0;
 	unsigned numOfMemLeft = replayMem.numOfStoredMem;
 	memcpy(arr1, replayMem.mem, numOfMemLeft*sizeof(NNstate_t));
 	memcpy(arr2, arr1, numOfMemLeft*sizeof(NNstate_t));
-	for(unsigned num = 0; num < 100; num++) {
+	for(unsigned num = 0; num < BATCH_SIZE; num++) {
 		index = rand() % numOfMemLeft;
 		replayMem.batch[num] = arr1[index];
 		numOfMemLeft--;
+		/*not last element*/
 		if(index != numOfMemLeft) {
 			memcpy(&arr1[index], &arr2[index+1], (numOfMemLeft - 1 - index)*sizeof(NNstate_t));
 			memcpy(arr2, arr1, numOfMemLeft*sizeof(NNstate_t));
 		}
 	}
+}
+
+vector<unsigned> Players::prepareInputForNN(pos target) {
+	vector<unsigned> result;
+	for(unsigned i = 0; i < gameBoardSize.X * gameBoardSize.Y; i++) {
+		if((i == (target.X * gameBoardSize.X + target.Y))
+			|| (i == (food.X * gameBoardSize.X + food.Y))
+			|| (i == (hole.X * gameBoardSize.X + hole.Y)))
+		{
+			result.push_back(1);
+		}
+		result.push_back(0);
+	}
+	return result;
 }
 
 /***************Game Class**************/
@@ -325,8 +308,7 @@ Game::Game(const unsigned &w,const unsigned &h, const vector<unsigned> &topology
 		positiveReward.Y = (rand()%height);
 		playerPosX = rand() % width;
 		playerPosY = rand() % height;
-		playerOne.initPlayer(playerPosX, playerPosY, w, h);
-		playerOne.enviUpdate(positiveReward, negativeReward, width, height);
+		playerOne.initPlayer(playerPosX, playerPosY, w, h, positiveReward, negativeReward);
 	} while(((negativeReward.X == positiveReward.X) \
 			&& (negativeReward.Y == positiveReward.Y)) \
 		|| ((negativeReward.X == playerPosX) \
@@ -374,9 +356,9 @@ void Game::visualGame(void) {
 void Game::gameStsUpdate(void) {
 	actions curAct;
 	bool endOfEps = false;
-	reward = -0.001;
+	reward = STEP_POINT;
 	/*player take action*/
-	curAct = playerOne.playGame(width, height);
+	curAct = playerOne.playGame();
 	numStep++;
 	/*update new player position after taking action*/
 	if(LEFT == curAct) {
@@ -384,10 +366,10 @@ void Game::gameStsUpdate(void) {
 			playerOne.updatePlayerPos(playerOne.getCurPos().X - 1, playerOne.getCurPos().Y);
 		}
 		else {
-			// playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
+			playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
 			endOfEps = true;
 			score--;
-			reward = -1;
+			reward = DEATH_POINT;
 		}
 	}
 	else if(RIGHT == curAct) {
@@ -395,10 +377,10 @@ void Game::gameStsUpdate(void) {
 			playerOne.updatePlayerPos(playerOne.getCurPos().X + 1, playerOne.getCurPos().Y);
 		}
 		else {
-			// playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
+			playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
 			endOfEps = true;
 			score--;
-			reward = -1;
+			reward = DEATH_POINT;
 		}
 	}
 	else if(UP == curAct) {
@@ -406,10 +388,10 @@ void Game::gameStsUpdate(void) {
 			playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y - 1);
 		}
 		else {
-			// playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
+			playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
 			endOfEps = true;
 			score--;
-			reward = -1;
+			reward = DEATH_POINT;
 		}
 	}
 	else {
@@ -417,27 +399,27 @@ void Game::gameStsUpdate(void) {
 			playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y + 1);
 		}
 		else {
-			// playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
+			playerOne.updatePlayerPos(playerOne.getCurPos().X, playerOne.getCurPos().Y);
 			endOfEps = true;
 			score--;
-			reward = -1;
+			reward = DEATH_POINT;
 		}
 	}
 
 	if((positiveReward.X == playerOne.getCurPos().X) && (positiveReward.Y == playerOne.getCurPos().Y)) {
 		endOfEps = true;
 		score++;
-		reward = 1;
+		reward = REWARD_POINT;
 	}
 	else if((negativeReward.X == playerOne.getCurPos().X) && (negativeReward.Y == playerOne.getCurPos().Y)) {
 		endOfEps = true;
 		score--;
-		reward = -1;
+		reward = DEATH_POINT;
 	}
 #ifndef DEEP_LEARNING
 	playerOne.updateQtable(reward, curAct);
 #else
-	playerOne.updateReplayMem(width, height, reward, curAct);
+	playerOne.updateReplayMem(reward, curAct);
 	playerOne.trainNetwork();
 #endif
 
@@ -448,7 +430,7 @@ void Game::gameStsUpdate(void) {
 		else {
 			playerOne.reset();
 		}
-		if(1 == reward) {
+		if(REWARD_POINT == reward) {
 			winGame++;
 		}
 		else {
@@ -466,14 +448,15 @@ bool Game::getGameSts(void) {
  * **********************************************/
 int main(int argc, char** argv) {
 	/*choose architect for neural network*/
-	vector<unsigned> topology {6, 4, 4, 1};
 	if(argc > 2) {
+		unsigned numNN = (unsigned)stoi(argv[1]) * (unsigned)stoi(argv[2]);
+		vector<unsigned> topology {numNN, 8, 4, 1};
 		Game game(stoi(argv[1]), stoi(argv[2]), topology);
 		do {
-			system("clear");
 			game.gameStsUpdate();
+			system("clear");
 			game.visualGame();
-			usleep(10000);
+			// usleep(100);
 		} while(false == game.getGameSts());
 	}
 	else {

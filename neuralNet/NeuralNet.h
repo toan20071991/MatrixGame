@@ -18,31 +18,34 @@ class Net {
         vector<layer> network;
     public:
         Net(const vector<unsigned> &topology);
-        void feedforward(const vector<double> &input);
-        void backprop(const vector<double> &result);
-        vector<double> getOutput(void);
+        void feedforward(const vector<float> &input);
+        void backprop(const vector<float> &result);
+        vector<float> getOutput(void);
+        vector<vector<vector<float>>> getTheta(void);
+        void setTheta(vector<vector<vector<float>>> &theta);
 };
 
 class Neural {
     private:
-        const double learningRate = 0.3;
-        const double alpha = 0.1;
-        double activation;  /*0-1*/
-        double gradient;   /*error between real and estimated value*/
-        vector<double> theta;
-        vector<double> deltaTheta;
+        const float learningRate = 0.03;
+        const float alpha = 0.1;
+        float activation;  /*0-1*/
+        float gradient;   /*error between real and estimated value*/
+        vector<float> theta;
+        vector<float> deltaTheta;
         unsigned myIndex;
-        double sigmoid(const double &input);
-        double derivativeSigmoid(const double &input);
+        float sigmoid(const float &input);
+        float derivativeSigmoid(const float &input);
     public:
         Neural(const unsigned &nextLayer, const unsigned &activeVal, unsigned &index);
-        double getTheta(const unsigned &thetaPos);
-        const double getActivation(void);
-        void setActivation(const double &value);
-        double feedForwardCal(const layer &prevLayer);
-        void calGradient(const double &result);
+        float getTheta(const unsigned &thetaPos);
+        const float getActivation(void);
+        void setActivation(const float &value);
+        float feedForwardCal(const layer &prevLayer);
+        void calGradient(const float &result);
         void calHiddenGradient(const layer nextLayer);
         void updateTheta(layer &prevLayer);
+        void setThetaManual(const vector<float> &iTheta);
 };
 
 #endif
